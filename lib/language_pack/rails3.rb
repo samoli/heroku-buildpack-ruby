@@ -42,6 +42,9 @@ private
         topic("Preparing app for Rails asset pipeline")
         if File.exists?("public/assets/manifest.yml")
           puts "Detected manifest.yml, assuming assets were compiled locally"
+        elsif precompiled_assets_are_cached?
+          puts "Assets already compiled, loading from cache"
+          cache_load "public/assets"
         else
           ENV["RAILS_GROUPS"] ||= "assets"
           ENV["RAILS_ENV"]    ||= "production"
@@ -53,6 +56,9 @@ private
           if $?.success?
             log "assets_precompile", :status => "success"
             puts "Asset precompilation completed (#{"%.2f" % time}s)"
+            puts "Caching assets"
+            cache_store "app/assets"
+            cache_store "public/assets"
           else
             log "assets_precompile", :status => "failure"
             puts "Precompiling assets failed, enabling runtime asset compilation"
@@ -81,5 +87,10 @@ private
         end
       "#{scheme}://user:pass@127.0.0.1/dbname"
     end
+  end
+
+  # have the assets changed since we last pre-compiled them?
+  def precompiled_assets_are_cached?
+    run("diff app/assets #{cache_base + 'app/assets'} --recursive").split("\n").length.zero?
   end
 end
