@@ -56,9 +56,87 @@ private
           if $?.success?
             log "assets_precompile", :status => "success"
             puts "Asset precompilation completed (#{"%.2f" % time}s)"
+
             puts "Caching assets"
             cache_store "app/assets"
             cache_store "public/assets"
+
+            if File.exist?("config/rackspace.yml")
+              puts "Storing assets on on Rackspace"
+
+              require 'net/http'
+              require 'timeout'
+
+              # Set up credentials
+              # Sadly, it's easier to store them here than in ENV variables 
+              # because they aren't easily/guaranteed to be available during the build process
+              # (See: https://devcenter.heroku.com/articles/labs-user-env-compile)
+              # But I'll probably re-work it to use the labs feature at some point. 
+              # Legacy code, lone developer, you know the story.
+              # 
+              # Example config/rackspace.yml:
+              #
+              # credentials: &credentials
+              #   username: example
+              #   api_key: 3b8f726a48b88dbf55939a5951b49f65  
+              #
+              # development:
+              #   <<: *credentials
+              #   container: example_test
+              #   cdn_url: http://c928372.r15.cf1.rackcdn.com
+              #
+              # test:
+              #   <<: *credentials
+              #   container: blp_test
+              #   cdn_url: http://c928372.r15.cf1.rackcdn.com
+              #
+              # staging:
+              #   <<: *credentials
+              #   container: blp_staging
+              #   cdn_url: https://c928372.ssl.cf1.rackcdn.com
+              #
+              # production:
+              #   <<: *credentials
+              #   container: example_production
+              #   cdn_url: https://c928372.ssl.cf1.rackcdn.com
+
+              username, api_key, container, cdn = YAML::load_file('config/rackspace.yml')['production'].values
+
+              # Check for URL existence
+              server = Net::HTTP.new(cdn, 443)
+
+              # Once-per-session authorization
+              _, destination, token = `
+                curl -s -D - \
+                  -H "X-Auth-Key: #{api_key}" \
+                  -H "X-Auth-User: #{username}" \
+                 https://auth.api.rackspacecloud.com/v1.0 | grep "X-"`.split("\n").map(&:strip).delete_if(&:empty?).map do |key|
+                key.split(' ').last
+              end
+
+              # Upload each asset
+              Dir.chdir('public') do
+                Dir["**/*"].each do |file|
+                  next if File.directory?(file)
+
+                  # File already uploaded?
+                  # We know this is the same because all assets have an md5 hash
+                  Timeout::timeout(2) do
+                    next if server.request_head(file).code == '200'
+                  end rescue nil
+
+                  puts "Storing #{file}"
+
+                  etag = `md5sum #{file}`.to_s.split(' ').first
+
+                  `curl -s -X PUT -T #{file} \
+                     -H "ETag: #{etag}" \
+                     -H "X-Auth-Token: #{token}" \
+                    #{destination}/#{container}/#{file}
+                  `
+                end
+              end
+            end
           else
             log "assets_precompile", :status => "failure"
             puts "Precompiling assets failed, enabling runtime asset compilation"
