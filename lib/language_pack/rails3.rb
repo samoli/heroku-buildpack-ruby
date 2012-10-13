@@ -38,7 +38,7 @@ private
     log("assets_precompile") do
       setup_database_url_env
 
-      if rake_task_defined?("assets:precompile")
+      if rake_task_defined?("assets:admin:precompile")
         topic("Preparing app for Rails asset pipeline")
         if File.exists?("public/assets/manifest.yml")
           puts "Detected manifest.yml, assuming assets were compiled locally"
@@ -49,15 +49,15 @@ private
           ENV["RAILS_GROUPS"] ||= "assets"
           ENV["RAILS_ENV"]    ||= "production"
 
-          puts "Running: rake assets:precompile"
+          puts "Running: rake assets:admin:precompile"
           require 'benchmark'
-          time = Benchmark.realtime { pipe("env PATH=$PATH:bin bundle exec rake assets:precompile 2>&1") }
+          time = Benchmark.realtime { pipe("env PATH=$PATH:bin bundle exec rake assets:admin:precompile 2>&1") }
 
           if $?.success?
             log "assets_precompile", :status => "success"
             puts "Asset precompilation completed (#{"%.2f" % time}s)"
             puts "Caching assets"
-            cache_store "app/assets"
+            cache_store "app/admin"
             cache_store "public/assets"
           else
             log "assets_precompile", :status => "failure"
@@ -91,6 +91,6 @@ private
 
   # have the assets changed since we last pre-compiled them?
   def precompiled_assets_are_cached?
-    run("diff app/assets #{cache_base + 'app/assets'} --recursive").split("\n").length.zero?
+    run("diff app/admin #{cache_base + 'app/admin'} --recursive").split("\n").length.zero?
   end
 end
