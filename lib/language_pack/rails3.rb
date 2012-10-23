@@ -29,6 +29,10 @@ class LanguagePack::Rails3 < LanguagePack::Rails2
 
 private
 
+  def install_plugins
+    topic "Skipping Rails plugin injection, already configured"
+  end
+
   def plugins
     super.concat(%w( rails3_serve_static_assets )).uniq
   end
