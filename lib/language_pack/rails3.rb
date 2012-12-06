@@ -95,6 +95,8 @@ private
 
   # have the assets changed since we last pre-compiled them?
   def precompiled_assets_are_cached?
-    run("diff app/assets #{cache_base + 'app/assets'} --recursive").split("\n").length.zero?
+    %w(app/assets vendor/assets).any? do |directory|
+      run("diff #{directory} #{cache_base + directory} --recursive").split("\n").length.zero?
+    end
   end
 end
