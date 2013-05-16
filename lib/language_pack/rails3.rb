@@ -57,7 +57,7 @@ private
           if $?.success?
             log "assets_precompile", :status => "success"
             puts "Asset precompilation completed (#{"%.2f" % time}s)"
-            cache_uncompiled_assets
+            cache_assets
           else
             log "assets_precompile", :status => "failure"
             puts "Precompiling assets failed, enabling runtime asset compilation"
@@ -88,24 +88,26 @@ private
     end
   end
 
-  # Stash uncompiled assets away, so we can run a diff against them the next time we deploy
-  def cache_uncompiled_assets
+  def cache_assets
     puts "Caching assets"
-    uncompiled_cache_directories.each { |directory| cache_store(directory) }
+    run("echo `git rev-parse HEAD` > public/assets/.version")
     cache_store "public/assets"
+  end
+
+  def no_sprocket_configuration_changes?
+    run("git diff #{previous_revision} | grep 'config.assets' | wc -l").to_i.zero?
+  end
+
+  def no_assets_have_changed?
+     run("git diff #{previous_revision} -- Gemfile.lock *.css* *.js* *.jpg *.jpeg *.png *.tiff *.gif | wc -l").to_i.zero?
   end
 
   # Have the assets changed since we last pre-compiled them?
   def precompiled_assets_are_cached?
-    uncompiled_cache_directories.all? do |directory|
-      run("diff #{directory} #{cache_base + directory} --recursive").split("\n").length.zero?
-    end
+    File.exists?(cache_base + '/public/assets/.version') && no_assets_have_changed? && no_sprocket_configuration_changes?
   end
 
-  # These are the directories we run a diff against to determine whether to re-compile our assets.
-  # If any lines in any files in any of these directories change, we will re-compile.
-  # Gemfile.lock is included to try to catch any changes in bundled assets
-  def uncompiled_cache_directories
-    %w(app/assets Gemfile.lock lib/assets vendor/assets)
+  def previous_revision
+    @previous_revision ||= run("cat #{cache_base}/public/assets/.version")
   end
 end
