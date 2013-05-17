@@ -123,7 +123,7 @@ To enable static assets being served on the dyno, [rails3_serve_static_assets](h
 
 #### Asset Compilation Cache
 
-To greatly speed up deploys when your assets are unchanged, the buildpack caches your precompiled assets between deploys. Usually this is a seamless process. If your cache becomes stale (for example, when a gem updates its assets), you can force the buildpack to recompile by adding a newline to any file in your app/assets directory.
+The buildpack caches precompiled assets when assets are unchanged between deploys. If your cache becomes stale, you can force the buildpack to recompile by adding a newline to any file in your app/assets directory.
 
 Hacking
 -------
