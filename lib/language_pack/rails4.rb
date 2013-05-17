@@ -53,7 +53,7 @@ class LanguagePack::Rails4 < LanguagePack::Rails3
           if $?.success?
             log "assets_precompile", :status => "success"
             puts "Asset precompilation completed (#{"%.2f" % time}s)"
-            cache_uncompiled_assets
+            cache_assets
           else
             log "assets_precompile", :status => "failure"
             error "Precompiling assets failed."

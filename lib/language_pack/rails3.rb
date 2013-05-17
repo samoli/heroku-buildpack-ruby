@@ -57,7 +57,7 @@ private
           if $?.success?
             log "assets_precompile", :status => "success"
             puts "Asset precompilation completed (#{"%.2f" % time}s)"
-            cache_uncompiled_assets
+            cache_assets
           else
             log "assets_precompile", :status => "failure"
             puts "Precompiling assets failed, enabling runtime asset compilation"
@@ -89,23 +89,40 @@ private
   end
 
   # Stash uncompiled assets away, so we can run a diff against them the next time we deploy
-  def cache_uncompiled_assets
+  # Also write our configuration hash to 'public/assets/.version' for comparison on next deploy
+  def cache_assets
     puts "Caching assets"
-    uncompiled_cache_directories.each { |directory| cache_store(directory) }
-    cache_store "public/assets"
+    write_asset_configuration_version
+    ["public/assets", * uncompiled_cache_directories].each { |directory| cache_store(directory) }
   end
 
   # Have the assets changed since we last pre-compiled them?
   def precompiled_assets_are_cached?
-    uncompiled_cache_directories.all? do |directory|
-      run("diff #{directory} #{cache_base + directory} --recursive").split("\n").length.zero?
-    end
+    File.exist?("#{cache_base}/public/assets/.version") &&
+    File.read("#{cache_base}/public/assets/.version") == asset_configuration_hash &&
+    uncompiled_cache_directories.all? { |directory| run("diff #{directory} #{cache_base + directory} --recursive").split("\n").length.zero? }
+  end
+
+  # The app may change the sprocket configuration from time to time.
+  # For example, another file may need to be precompiled,
+  # or another folder may be added to the asset path.
+  def asset_configuration_hash
+    # Find all non-cached, non-vendored references to 'config.assets',
+    # strip whitespace, and turn into a hash
+    @asset_configuration_hash ||= run("grep -r 'config.assets' . | grep -v './#{cache_base}' | grep -v './tmp' | grep -v './vendor' | sed -e 's/ *//g;' | shasum")[0...-2].strip
   end
 
   # These are the directories we run a diff against to determine whether to re-compile our assets.
   # If any lines in any files in any of these directories change, we will re-compile.
   # Gemfile.lock is included to try to catch any changes in bundled assets
   def uncompiled_cache_directories
-    %w(app/assets Gemfile.lock lib/assets vendor/assets)
+    @uncompiled_cache_directories ||= [
+      'Gemfile.lock',
+      * Dir['**/*.{js*,coffee,css*,gif,jpg,jpeg,png,sass,scss}'].map { |file| File.dirname(file) }.uniq
+    ]
+  end
+
+  def write_asset_configuration_version
+    File.open("public/assets/.version", "w+") { |file| file.write(asset_configuration_hash) }
   end
 end
