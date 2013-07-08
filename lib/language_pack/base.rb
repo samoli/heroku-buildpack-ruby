@@ -100,6 +100,10 @@ class LanguagePack::Base
       end
     end
   end
+  
+  def cache_base
+    Pathname.new(cache_path)
+  end
 
 private ##################################
 
